@@ -91,6 +91,6 @@ if __name__ == "__main__":
     }
 
     detection = ArucoDetection(aruco_dict)
-    video_source = "ArucoCodeDetection\challengeB.mp4"  # Change this to your video source (e.g., file path or camera index)
-    output_path = 'output_video.mp4'  # Change this to your desired output path
+    video_source = "ArucoCodeDetection\challengeB.mp4"  
+    output_path = 'output_video.mp4'  
     detection.process_video(video_source, output_path)
