@@ -121,6 +121,7 @@ class ArucoDetection:
         with self.lock:
             if self.ids is not None and self.corners is not None:
                 for corner, id_, rvec, tvec in zip(self.corners, self.ids, self.rvecs, self.tvecs):
+                    cv2.aruco.drawDetectedMarkers(image, [corner], id_)
 
                     for point in corner[0]:
                         cv2.circle(image, tuple(point.astype(int)), 5, (0, 255, 0), -1)
@@ -144,7 +145,7 @@ class ArucoDetection:
                     ]
                     self.processed_data.append([frame_id, int(id_[0]), aruco_2d_points, distance, yaw, pitch, roll])
 
-                    info_text = (f"ID: {id_[0]} Dist: {distance:.2f}m Yaw: {yaw:.2f} "
+                    info_text = (f"Dist: {distance:.2f}m Yaw: {yaw:.2f} "
                                 f"Pitch: {pitch:.2f} Roll: {roll:.2f} LookAt: {lookAt_angle:.2f}")
                     cv2.putText(image, info_text, (int(corner[0][0][0]), int(corner[0][0][1]) - 10),
                                 cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 0), 2)
