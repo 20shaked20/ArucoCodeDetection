@@ -24,6 +24,7 @@ The processed video will be saved with the detected markers highlighted.
 - OpenCV 4.5+
 - Imutils
 - Numpy
+- open-cv-contrib
 </br></br>
 
 ## Installation
