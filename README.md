@@ -55,7 +55,7 @@ if __name__ == "__main__":
 ```
 **Run the Detection Script:** Execute the script to process the new video file:
 ```
-python aruco_detection.py
+python ArucoDetector.py
 ```
 
 ## Parameters:
@@ -65,7 +65,7 @@ python aruco_detection.py
 
 
 ## Code Explanation
-```aruco_detection.py```</br>
+```ArucoDetector.py```</br>
 This script contains the main classes and functions for detecting ArUco markers in a video.</br>
 
 **Classes and Methods**
