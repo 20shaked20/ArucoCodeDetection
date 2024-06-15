@@ -2,6 +2,8 @@ import threading
 import cv2
 import numpy as np
 import imutils
+import csv
+import time
 
 class ArucoDetection:
 
@@ -22,8 +24,12 @@ class ArucoDetection:
         self.lock = threading.Lock()
         self.stop_event = threading.Event()
 
+        # List to store the processed data
+        self.processed_data = []
+
     def set_image_to_process(self, img):
-        """Set the image to process.
+        """
+        Set the image to process.
         
         Args:
             img (numpy.ndarray): The image to be processed.
@@ -32,7 +38,8 @@ class ArucoDetection:
             self.img = img.copy()
 
     def preprocess_frame(self, frame):
-        """Preprocess the frame to improve detection accuracy.
+        """
+        Preprocess the frame to improve detection accuracy.
         
         Converts the frame to grayscale, applies CLAHE (Contrast Limited Adaptive Histogram Equalization),
         and blurs the image to reduce noise.
@@ -50,7 +57,8 @@ class ArucoDetection:
         return blur
 
     def detect_aruco(self):
-        """Detect ArUco markers in the image.
+        """
+        Detect ArUco markers in the image.
         
         Continuously checks for a new image to process and detects ArUco markers in it. The detection
         parameters are fine-tuned for better accuracy. The detected markers' corners, ids, rotation vectors,
@@ -96,13 +104,16 @@ class ArucoDetection:
                     self.rvecs = []
                     self.tvecs = []
 
-    def draw_detection(self, image):
-        """Draw detections on the image.
+    def draw_detection(self, image, frame_id):
+        """
+        Draw detections on the image and collect data.
         
-        Draws the detected ArUco markers and their axes on the image.
+        Draws the detected ArUco markers and their axes on the image,
+        along with the 2D corner points and the 3D pose information.
 
         Args:
             image (numpy.ndarray): The image on which to draw the detections.
+            frame_id (int): The ID of the current frame.
 
         Returns:
             numpy.ndarray: The image with detections drawn on it.
@@ -110,12 +121,51 @@ class ArucoDetection:
         with self.lock:
             if self.ids is not None and self.corners is not None:
                 for corner, id_, rvec, tvec in zip(self.corners, self.ids, self.rvecs, self.tvecs):
-                    cv2.aruco.drawDetectedMarkers(image, [corner], id_)
-                    cv2.drawFrameAxes(image, self.camera_matrix, self.dist_coeffs, rvec, tvec, self.marker_length * 0.5)
+
+                    for point in corner[0]:
+                        cv2.circle(image, tuple(point.astype(int)), 5, (0, 255, 0), -1)
+
+                    distance = np.linalg.norm(tvec)
+                    rmat, _ = cv2.Rodrigues(rvec)
+                    rmat = np.array(rmat)
+                    _, _, _, _, _, _, euler_angles = cv2.decomposeProjectionMatrix(np.hstack((rmat, tvec.reshape(3, 1))))
+                    yaw, pitch, roll = [(float(np.degrees(angle.item())) % 360) for angle in euler_angles]
+
+                    lookAt_point = np.array([0, 0, 1])  # Assuming camera looks along the z-axis
+                    marker_vector = tvec.reshape(3)
+                    lookAt_angle = float(np.degrees(np.arccos(np.dot(lookAt_point, marker_vector) / np.linalg.norm(marker_vector))))
+
+                    # Collect data
+                    aruco_2d_points = [
+                        tuple(corner[0][0].astype(int)),
+                        tuple(corner[0][1].astype(int)),
+                        tuple(corner[0][2].astype(int)),
+                        tuple(corner[0][3].astype(int))
+                    ]
+                    self.processed_data.append([frame_id, int(id_[0]), aruco_2d_points, distance, yaw, pitch, roll])
+
+                    info_text = (f"ID: {id_[0]} Dist: {distance:.2f}m Yaw: {yaw:.2f} "
+                                f"Pitch: {pitch:.2f} Roll: {roll:.2f} LookAt: {lookAt_angle:.2f}")
+                    cv2.putText(image, info_text, (int(corner[0][0][0]), int(corner[0][0][1]) - 10),
+                                cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 0), 2)
+
         return image
 
-    def process_video(self, video_source, output_path):
-        """Process video frames to detect ArUco codes and export the result.
+    def write_to_csv(self, output_csv_path):
+        """
+        Write the processed data to a CSV file.
+
+        Args:
+            output_csv_path (str): The path to the output CSV file.
+        """
+        with open(output_csv_path, 'w', newline='') as csvfile:
+            csv_writer = csv.writer(csvfile)
+            csv_writer.writerow(['Frame ID', 'Aruco ID', 'Aruco 2D Points', 'Distance', 'Yaw', 'Pitch', 'Roll'])
+            csv_writer.writerows(self.processed_data)
+
+    def process_video(self, video_source, output_path, output_csv_path):
+        """
+        Process video frames to detect ArUco codes and export the result.
         
         Reads frames from the video source, processes them to detect ArUco markers, and writes the result
         to the output path.
@@ -123,6 +173,7 @@ class ArucoDetection:
         Args:
             video_source (str): The path to the input video file.
             output_path (str): The path to the output video file.
+            output_csv_path (str): The path to the output CSV file.
         """
         cap = cv2.VideoCapture(video_source)
         fourcc = cv2.VideoWriter_fourcc(*'mp4v')  # Codec for the output video
@@ -134,24 +185,40 @@ class ArucoDetection:
 
         threading.Thread(target=self.detect_aruco, daemon=True).start()
 
+        frame_times = []
+        frame_id = 0
         while cap.isOpened():
             ret, frame = cap.read()
             if not ret:
                 break
 
+            start_time = time.time()
             self.set_image_to_process(frame)
-            frame = self.draw_detection(frame)
+            frame = self.draw_detection(frame, frame_id)
             out.write(frame)
+            end_time = time.time()
+
+            frame_times.append(end_time - start_time)
 
             cv2.imshow('Aruco Detection', frame)
             if cv2.waitKey(int(300 / fps)) & 0xFF == ord('q'):
                 break
+
+            frame_id += 1
 
         self.stop_event.set()
         cap.release()
         out.release()
         cv2.destroyAllWindows()
 
+        # Calculate and print the average processing time per frame
+        average_time_per_frame = sum(frame_times) / len(frame_times)
+        print(f"Average time to process each frame: {average_time_per_frame:.4f} seconds")
+
+        # Write the processed data to a CSV file
+        self.write_to_csv(output_csv_path)
+
+# The rest of the code remains unchanged
 if __name__ == "__main__":
     aruco_dict = {
         "DICT_4X4_50": cv2.aruco.DICT_4X4_50,
@@ -160,13 +227,14 @@ if __name__ == "__main__":
         "DICT_4X4_1000": cv2.aruco.DICT_4X4_1000
     }
 
-    #Camera calibrations using ROS (given the camera details we had)
+    # Camera calibrations using ROS (given the camera details we had)
     camera_matrix = np.array([[921.170702, 0.000000, 459.904354], [0.000000, 919.018377, 351.238301], [0.000000, 0.000000, 1.000000]])
     dist_coeffs = np.array([-0.033458, 0.105152, 0.001256, -0.006647, 0.000000])
 
     marker_length = 0.05  # Marker length in meters
 
     detection = ArucoDetection(aruco_dict, camera_matrix, dist_coeffs, marker_length)
-    video_source = "challengeB.mp4"  
-    output_path = 'output_video.mp4'  
-    detection.process_video(video_source, output_path)
+    video_source = "challengeB.mp4"
+    output_path = 'output_video.mp4'
+    output_csv_path = 'output_data.csv'
+    detection.process_video(video_source, output_path, output_csv_path)
