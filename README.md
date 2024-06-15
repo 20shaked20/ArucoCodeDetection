@@ -43,12 +43,20 @@ pip install -r requirements.txt
 
 
 ## Usage
-Run the detection script:
-
+If you wish toadd your own video file follow the instructions, if not youcan skip to the "Run the Detection Script".</br>
+- **Place Your Video File:** Ensure your video file (e.g., new_video.mp4) is in the same directory as the script or note its relative path.
+- **Update the Video Source in the Script:** Open ```aruco_detection.py``` and locate the section where the video source is defined. Update the ```video_source``` variable to point to your new video file:
+```
+if __name__ == "__main__":
+    ...
+    video_source = "new_video.mp4"  # Path to your new video file
+    output_path = 'output_video.mp4'  # Path to save the output video
+    ...
+```
+**Run the Detection Script:** Execute the script to process the new video file:
 ```
 python aruco_detection.py
 ```
-
 
 ## Parameters:
 
