@@ -27,6 +27,8 @@ class ArucoDetection:
     def preprocess_frame(self, frame):
         """Preprocess the frame to improve detection accuracy."""
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
+        gray = clahe.apply(gray)
         blur = cv2.GaussianBlur(gray, (5, 5), 0)
         return blur
 
@@ -39,14 +41,19 @@ class ArucoDetection:
                 else:
                     continue
 
-            image = imutils.resize(img, width=720)
+            image = imutils.resize(img, width=1080)  # Process at higher resolution
             processed_image = self.preprocess_frame(image)
             arucoDict = cv2.aruco.getPredefinedDictionary(self.ARUCO_DICT["DICT_4X4_100"])
             arucoParams = cv2.aruco.DetectorParameters()
-            arucoParams.adaptiveThreshWinSizeMin = 3
-            arucoParams.adaptiveThreshWinSizeMax = 23
-            arucoParams.adaptiveThreshWinSizeStep = 10
+
+            # Fine-tuning the detector parameters
+            arucoParams.adaptiveThreshWinSizeMin = 5
+            arucoParams.adaptiveThreshWinSizeMax = 25
+            arucoParams.adaptiveThreshWinSizeStep = 5
             arucoParams.cornerRefinementMethod = cv2.aruco.CORNER_REFINE_SUBPIX
+            arucoParams.cornerRefinementWinSize = 10
+            arucoParams.cornerRefinementMaxIterations = 100
+            arucoParams.cornerRefinementMinAccuracy = 0.05
 
             (corners, ids, rejected) = cv2.aruco.detectMarkers(processed_image, arucoDict, parameters=arucoParams)
 
@@ -80,7 +87,11 @@ class ArucoDetection:
         """Process video frames to detect ArUco codes and export the result."""
         cap = cv2.VideoCapture(video_source)
         fourcc = cv2.VideoWriter_fourcc(*'mp4v')  # Codec for the output video
-        out = None
+        fps = cap.get(cv2.CAP_PROP_FPS)
+        width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+        height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+
+        out = cv2.VideoWriter(output_path, fourcc, fps, (width, height))
 
         threading.Thread(target=self.detect_aruco, daemon=True).start()
 
@@ -89,17 +100,12 @@ class ArucoDetection:
             if not ret:
                 break
 
-            if out is None:
-                # Initialize video writer with the same dimensions as the input frame
-                height, width = frame.shape[:2]
-                out = cv2.VideoWriter(output_path, fourcc, 30.0, (width, height))
-
             self.set_image_to_process(frame)
             frame = self.draw_detection(frame)
             out.write(frame)
 
             cv2.imshow('Aruco Detection', frame)
-            if cv2.waitKey(1) & 0xFF == ord('q'):
+            if cv2.waitKey(int(300 / fps)) & 0xFF == ord('q'):
                 break
 
         self.stop_event.set()
@@ -115,9 +121,8 @@ if __name__ == "__main__":
         "DICT_4X4_1000": cv2.aruco.DICT_4X4_1000
     }
 
-    # Example camera calibration data (needs to be replaced with actual calibration data)
-    camera_matrix = np.array([[800, 0, 320], [0, 800, 240], [0, 0, 1]], dtype=np.float32)
-    dist_coeffs = np.array([0.1, -0.25, 0, 0, 0.1], dtype=np.float32)
+    camera_matrix = np.array([[921.170702, 0.000000, 459.904354], [0.000000, 919.018377, 351.238301], [0.000000, 0.000000, 1.000000]])
+    dist_coeffs = np.array([-0.033458, 0.105152, 0.001256, -0.006647, 0.000000])
     marker_length = 0.05  # Marker length in meters (example value)
 
     detection = ArucoDetection(aruco_dict, camera_matrix, dist_coeffs, marker_length)
