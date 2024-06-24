@@ -83,24 +83,38 @@ class ArucoDetection:
         yaw_diff = current_frame_data['Yaw'] - target_frame_data['Yaw']
         
         command = ""
-        if position_diff[1] > 10:
-            command += "down "
-        elif position_diff[1] < -10:
-            command += "up "
-        if position_diff[0] > 10:
-            command += "left "
-        elif position_diff[0] < -10:
-            command += "right "
-        if distance_diff > 0.1:
-            command += "backward "
-        elif distance_diff < -0.1:
-            command += "forward "
-        if yaw_diff > 10:
-            command += "turn-left"
-        elif yaw_diff < -10:
-            command += "turn-right"
+        
+        # Determine the most significant positional difference
+        abs_position_diff = np.abs(position_diff)
+        max_pos_diff_index = np.argmax(abs_position_diff)
+
+        # Determine the most significant overall difference
+        diffs = [abs_position_diff[0], abs_position_diff[1], np.abs(distance_diff), np.abs(yaw_diff)]
+        max_diff_index = np.argmax(diffs)
+        
+        if max_diff_index == 0:
+            if position_diff[0] > 10:
+                command = "left"
+            elif position_diff[0] < -10:
+                command = "right"
+        elif max_diff_index == 1:
+            if position_diff[1] > 10:
+                command = "down"
+            elif position_diff[1] < -10:
+                command = "up"
+        elif max_diff_index == 2:
+            if distance_diff > 0.1:
+                command = "backward"
+            elif distance_diff < -0.1:
+                command = "forward"
+        elif max_diff_index == 3:
+            if yaw_diff > 10:
+                command = "turn-left"
+            elif yaw_diff < -10:
+                command = "turn-right"
         
         return command.strip()
+
 
     def draw_detection(self, image, frame_id, target_frame_data):
         with self.lock:
@@ -117,20 +131,16 @@ class ArucoDetection:
                     _, _, _, _, _, _, euler_angles = cv2.decomposeProjectionMatrix(np.hstack((rmat, tvec.reshape(3, 1))))
                     yaw, pitch, roll = [(float(np.degrees(angle.item())) % 360) for angle in euler_angles]
 
-                    lookAt_point = np.array([0, 0, 1])
-                    marker_vector = tvec.reshape(3)
-                    lookAt_angle = float(np.degrees(np.arccos(np.dot(lookAt_point, marker_vector) / np.linalg.norm(marker_vector))))
-
                     aruco_2d_points = [
                         tuple(corner[0][0].astype(int)),
                         tuple(corner[0][1].astype(int)),
-                        tuple(corner[0][2].astype(int)),
+                        tuple(corner[0][2].astype(int)),    
                         tuple(corner[0][3].astype(int))
                     ]
                     self.processed_data.append([frame_id, int(id_[0]), aruco_2d_points, distance, yaw, pitch, roll])
 
-                    info_text = (f"Dist: {distance:.2f}m Yaw: {yaw:.2f} "
-                                f"Pitch: {pitch:.2f} Roll: {roll:.2f} LookAt: {lookAt_angle:.2f}")
+                    info_text = (f"ID: {id_[0]} Dist: {distance:.2f}m Yaw: {yaw:.2f} "
+                                f"Pitch: {pitch:.2f} Roll: {roll:.2f}")
                     cv2.putText(image, info_text, (int(corner[0][0][0]), int(corner[0][0][1]) - 10),
                                 cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 0), 2)
 
@@ -148,6 +158,7 @@ class ArucoDetection:
                     print(f"Frame {frame_id}, Aruco ID {id_[0]}: {command}")
 
         return image
+
 
     def write_to_csv(self, output_csv_path):
         with open(output_csv_path, 'w', newline='') as csvfile:
