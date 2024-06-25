@@ -6,29 +6,30 @@ import logging
 import time
 
 class ArucoDetector:
-    
-    def __init__(self, video_path, output_csv_path, output_video_path, marker_size=0.05, focal_length=600):
+    def __init__(self, video_path, output_csv_path, output_video_path, camera_matrix, distortion, marker_size=0.05):
         """
         Initialize the ArucoDetector with the video path, output CSV path, output video path,
-        marker size, and focal length.
+        camera matrix, distortion coefficients, and marker size.
 
         :param video_path: Path to the input video file.
         :param output_csv_path: Path to save the output CSV file.
         :param output_video_path: Path to save the output video file.
+        :param camera_matrix: Camera matrix from calibration.
+        :param distortion: Distortion coefficients from calibration.
         :param marker_size: Size of the ArUco marker in meters.
-        :param focal_length: Focal length of the camera in pixels.
         """
 
         self.video_path = video_path
         self.output_csv_path = output_csv_path
         self.output_video_path = output_video_path
+        self.camera_matrix = camera_matrix
+        self.distortion = distortion
         self.marker_size = marker_size
-        self.focal_length = focal_length
         self.aruco_dict  = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_4X4_100)
         self.parameters  = cv2.aruco.DetectorParameters()
         self.csv_data = []
 
-        #logger 
+        # Set up logging
         logging.basicConfig(level=logging.INFO)
         self.logger = logging.getLogger('ArucoDetector')
 
@@ -53,7 +54,7 @@ class ArucoDetector:
                 top_left, top_right, bottom_right, bottom_left = corner
 
                 # Calculate distance from the camera to the marker
-                dist = (self.marker_size * self.focal_length) / np.linalg.norm(top_left - top_right)
+                dist = (self.marker_size * self.camera_matrix[0, 0]) / np.linalg.norm(top_left - top_right)
                 # Calculate yaw (rotation around the vertical axis)
                 vector = top_right - top_left
                 yaw = math.degrees(math.atan2(vector[1], vector[0]))
@@ -111,6 +112,7 @@ class ArucoDetector:
         self.logger.info(f"Video processing completed. Total time: {Time:.2f} seconds.")
         self.logger.info(f"Each Frame on average took to process: {(Time/ frame_id):.2f} seconds")
 
+
     def save_csv(self):
         """
         Saves the collected ArUco marker information to a CSV file.
@@ -126,5 +128,11 @@ if __name__ == "__main__":
     output_csv_path = 'output.csv'
     output_video_path = 'output_video.avi'
 
-    detector = ArucoDetector(video_path, output_csv_path, output_video_path)
+    #camera calibrations as sent in the assignment
+    camera_matrix = np.array([[921.170702, 0.000000, 459.904354],
+                              [0.000000, 919.018377, 351.238301],
+                              [0.000000, 0.000000, 1.000000]])
+    distortion = np.array([-0.033458, 0.105152, 0.001256, -0.006647, 0.000000])
+
+    detector = ArucoDetector(video_path, output_csv_path, output_video_path, camera_matrix, distortion)
     detector.process_video()
