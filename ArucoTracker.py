@@ -6,65 +6,77 @@ class ArucoTracker:
     def __init__(self, target_image_path, marker_size=0.05):
         self.marker_size = marker_size
 
+        # Camera matrix and distortion coefficients (example values)
+        self.camera_matrix = np.array([[921.170702, 0.000000, 459.904354],
+                                       [0.000000, 919.018377, 351.238301],
+                                       [0.000000, 0.000000, 1.000000]])
+        self.distortion_coeffs = np.array([-0.033458, 0.105152, 0.001256, -0.006647, 0.000000])
+
         # Load target image and detect markers
         self.target_image = cv2.imread(target_image_path)
         self.aruco_dict = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_4X4_100)
         self.parameters = cv2.aruco.DetectorParameters()
 
-        self.target_corners, self.target_ids = self.detect_markers(self.target_image)
-        self.target_positions = self.get_marker_positions(self.target_corners)
+        self.target_corners, self.target_ids, self.target_rvecs, self.target_tvecs = self.detect_markers(self.target_image)
 
     def detect_markers(self, image):
         gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
         corners, ids, _ = cv2.aruco.detectMarkers(gray, self.aruco_dict, parameters=self.parameters)
-        return corners, ids
 
-    def get_marker_positions(self, corners):
-        positions = {}
-        if corners is not None:
-            for i, corner in enumerate(corners):
-                c = corner[0]
-                top_left = c[0]
-                top_right = c[1]
-                positions[i] = {'top_left': top_left, 'top_right': top_right}
-        return positions
+        if ids is not None:
+            rvecs, tvecs, _ = cv2.aruco.estimatePoseSingleMarkers(corners, self.marker_size, self.camera_matrix, self.distortion_coeffs)
+            return corners, ids, rvecs, tvecs
+        else:
+            return corners, ids, None, None
 
-    def calculate_movement(self, live_positions):
-        commands = []
+    def calculate_movement(self, live_rvecs, live_tvecs):
+        if live_rvecs is None or live_tvecs is None:
+            return []
 
-        for id in self.target_positions:
-            if id in live_positions:
-                target_top_left = self.target_positions[id]['top_left']
-                target_top_right = self.target_positions[id]['top_right']
+        command = []
 
-                live_top_left = live_positions[id]['top_left']
-                live_top_right = live_positions[id]['top_right']
+        target_tvec = self.target_tvecs[0][0]
+        live_tvec = live_tvecs[0][0]
 
-                # Calculate movements based on the difference between target and live positions
-                if live_top_left[0] < target_top_left[0] - 20:
-                    commands.append("move right")
-                elif live_top_left[0] > target_top_left[0] + 20:
-                    commands.append("move left")
+        # Calculate distance differences
+        diff = target_tvec - live_tvec
+        distance = np.linalg.norm(diff)
 
-                if live_top_left[1] < target_top_left[1] - 20:
-                    commands.append("move down")
-                elif live_top_left[1] > target_top_left[1] + 20:
-                    commands.append("move up")
+        # Check proximity
+        if distance < 0.05:
+            command.append("Position aligned")
+        else:
+            if diff[0] > 0.05:
+                command.append("move right")
+            elif diff[0] < -0.05:
+                command.append("move left")
+            elif diff[1] > 0.05:
+                command.append("move down")
+            elif diff[1] < -0.05:
+                command.append("move up")
+            elif diff[2] > 0.05:
+                command.append("move forward")
+            elif diff[2] < -0.05:
+                command.append("move backward")
 
-                # Calculate rotation
-                target_vector = target_top_right - target_top_left
-                live_vector = live_top_right - live_top_left
+        # Calculate rotation (yaw) differences
+        target_rvec = self.target_rvecs[0][0]
+        live_rvec = live_rvecs[0][0]
 
-                target_angle = math.atan2(target_vector[1], target_vector[0])
-                live_angle = math.atan2(live_vector[1], live_vector[0])
+        target_rotation_matrix, _ = cv2.Rodrigues(target_rvec)
+        live_rotation_matrix, _ = cv2.Rodrigues(live_rvec)
 
-                angle_diff = math.degrees(live_angle - target_angle)
-                if angle_diff > 10:
-                    commands.append("turn right")
-                elif angle_diff < -10:
-                    commands.append("turn left")
+        target_yaw = np.arctan2(target_rotation_matrix[1, 0], target_rotation_matrix[0, 0])
+        live_yaw = np.arctan2(live_rotation_matrix[1, 0], live_rotation_matrix[0, 0])
 
-        return commands
+        yaw_diff_degrees = np.degrees(target_yaw - live_yaw)
+
+        if yaw_diff_degrees > 10:
+            command.append("turn right")
+        elif yaw_diff_degrees < -10:
+            command.append("turn left")
+
+        return command
 
     def track(self):
         cap = cv2.VideoCapture(0)
@@ -74,18 +86,17 @@ class ArucoTracker:
             if not ret:
                 break
 
-            live_corners, live_ids = self.detect_markers(frame)
-            live_positions = self.get_marker_positions(live_corners)
+            live_corners, live_ids, live_rvecs, live_tvecs = self.detect_markers(frame)
 
-            commands = self.calculate_movement(live_positions)
+            commands = self.calculate_movement(live_rvecs, live_tvecs)
 
             # Draw detected markers and their IDs
             if live_ids is not None:
                 cv2.aruco.drawDetectedMarkers(frame, live_corners, live_ids)
 
             # Display movement commands on the frame
-            for command in commands:
-                cv2.putText(frame, command, (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2, cv2.LINE_AA)
+            if commands:
+                cv2.putText(frame, commands[0], (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2, cv2.LINE_AA)
 
             cv2.imshow('frame', frame)
 
@@ -96,6 +107,6 @@ class ArucoTracker:
         cv2.destroyAllWindows()
 
 if __name__ == "__main__":
-    target_image_path = 'frame_10.jpg'  # Path to the target frame image
+    target_image_path = 'target_frame_home.jpg'  # Path to the target frame image
     tracker = ArucoTracker(target_image_path)
     tracker.track()
