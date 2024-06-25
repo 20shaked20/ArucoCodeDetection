@@ -106,7 +106,10 @@ class ArucoDetector:
         end_time = time.time()
         self.save_csv()
 
-        self.logger.info(f"Video processing completed. Total time: {end_time - start_time:.2f} seconds.")
+        Time = end_time-start_time
+
+        self.logger.info(f"Video processing completed. Total time: {Time:.2f} seconds.")
+        self.logger.info(f"Each Frame on average took to process: {(Time/ frame_id):.2f} seconds")
 
     def save_csv(self):
         """
