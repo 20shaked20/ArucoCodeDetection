@@ -74,7 +74,7 @@ This script contains the main classes and functions for detecting ArUco markers 
 ## Output
 The output consists of two files:
 
-- **CSV File:** Contains the frame ID, ArUco ID, 2D coordinates of the marker corners, and 3D information (distance, yaw, pitch, roll).
+- **CSV File:** Contains the frame ID, ArUco ID, 2D coordinates of the marker corners, and 3D information (distance, yaw).
 - **Output Video:** The input video with detected ArUco markers highlighted in green rectangles.
 </br></br>
 
