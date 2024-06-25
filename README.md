@@ -33,15 +33,16 @@ pip install -r requirements.txt
 ```
 
 
-## Usage
+## How to Run
 If you wish to add your own video file follow the instructions, if not you can skip to the "Run the Detection Script".</br>
 - **Place Your Video File:** Ensure your video file (e.g., new_video.mp4) is in the same directory as the script or note its relative path.
-- **Update the Video Source in the Script:** Open ```ArucoDetector.py``` and locate the section where the video source is defined. Update the ```video_source``` variable to point to your new video file:
+- **Update the Video Source in the Script:** Open ```ArucoDetector.py``` and locate the section where the video source is defined. Update the ```video_path```, ```output_csv_path``` and ```output_video_path``` variables to point to your new video file and desired output locations:
 ```
 if __name__ == "__main__":
     ...
-    video_source = "new_video.mp4"  # Path to your new video file
-    output_path = 'output_video.mp4'  # Path to save the output video
+    video_path = 'new_video.mp4'  # Path to your new video file
+    output_csv_path = 'output.csv'  # Path to save the output CSV file
+    output_video_path = 'output_video.avi'  # Path to save the output video file
     ...
 ```
 **Run the Detection Script:** Execute the script to process the new video file:
@@ -51,8 +52,9 @@ python ArucoDetector.py
 
 ## Parameters:
 
-- ```video_source```: Path to the input video file. Default is ```challengeB.mp4```.</br>
-- ```output_path```: Path to save the output video file with detected markers. Default is ```output_video.mp4```.</br></br>
+- ```video_path```: Path to the input video file. Default is ```challengeB.mp4```.</br>
+- ```output_csv_path```: Path to save the CSV file. Default is ```output.csv```.</br>
+- ```output_video_path```: h to save the output video file with detected markers. Default is ```output_video.avi```. </br></br>
 
 
 ## Code Explanation
