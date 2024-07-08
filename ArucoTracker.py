@@ -1,12 +1,11 @@
 import cv2
 import numpy as np
-import math
 
 class ArucoTracker:
     def __init__(self, target_image_path, marker_size=0.05):
         self.marker_size = marker_size
 
-        # Camera matrix and distortion coefficients (example values)
+        # Camera matrix and distortion coefficients (this is as given in class..)
         self.camera_matrix = np.array([[921.170702, 0.000000, 459.904354],
                                        [0.000000, 919.018377, 351.238301],
                                        [0.000000, 0.000000, 1.000000]])
@@ -31,7 +30,7 @@ class ArucoTracker:
 
     def calculate_movement(self, live_rvecs, live_tvecs):
         if live_rvecs is None or live_tvecs is None:
-            return []
+            return [], None, None, None, None, None
 
         command = []
 
@@ -42,7 +41,12 @@ class ArucoTracker:
         diff = target_tvec - live_tvec
         distance = np.linalg.norm(diff)
 
-        # Check proximity
+        # Axis differences
+        diff_x = diff[0]
+        diff_y = diff[1]
+        diff_z = diff[2]
+
+        # Check proximity(this can be adjusted if we want a less hardcore measures :P)
         if distance < 0.05:
             command.append("Position aligned")
         else:
@@ -50,11 +54,11 @@ class ArucoTracker:
                 command.append("move right")
             elif diff[0] < -0.05:
                 command.append("move left")
-            elif diff[1] > 0.05:
+            if diff[1] > 0.05:
                 command.append("move down")
             elif diff[1] < -0.05:
                 command.append("move up")
-            elif diff[2] > 0.05:
+            if diff[2] > 0.05:
                 command.append("move forward")
             elif diff[2] < -0.05:
                 command.append("move backward")
@@ -76,7 +80,7 @@ class ArucoTracker:
         elif yaw_diff_degrees < -10:
             command.append("turn left")
 
-        return command
+        return command, distance, diff_x, diff_y, diff_z, yaw_diff_degrees
 
     def track(self):
         cap = cv2.VideoCapture(0)
@@ -88,7 +92,7 @@ class ArucoTracker:
 
             live_corners, live_ids, live_rvecs, live_tvecs = self.detect_markers(frame)
 
-            commands = self.calculate_movement(live_rvecs, live_tvecs)
+            commands, distance, diff_x, diff_y, diff_z, yaw_diff_degrees = self.calculate_movement(live_rvecs, live_tvecs)
 
             # Draw detected markers and their IDs
             if live_ids is not None:
@@ -96,7 +100,13 @@ class ArucoTracker:
 
             # Display movement commands on the frame
             if commands:
-                cv2.putText(frame, commands[0], (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2, cv2.LINE_AA)
+                command_text = ', '.join(commands)
+                cv2.putText(frame, command_text, (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2, cv2.LINE_AA)
+
+            # Display axis differences and distance
+            if distance is not None:
+                info_text = f"Distance: {distance:.2f}m, X: {diff_x:.2f}m, Y: {diff_y:.2f}m, Z: {diff_z:.2f}m, Yaw: {yaw_diff_degrees:.2f}°"
+                cv2.putText(frame, info_text, (10, 70), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 0, 0), 2, cv2.LINE_AA)
 
             cv2.imshow('frame', frame)
 
@@ -107,6 +117,6 @@ class ArucoTracker:
         cv2.destroyAllWindows()
 
 if __name__ == "__main__":
-    target_image_path = 'target_frame_home.jpg'  # Path to the target frame image
+    target_image_path = 'target_frame_1.jpg'  # Path to the target frame image
     tracker = ArucoTracker(target_image_path)
     tracker.track()
