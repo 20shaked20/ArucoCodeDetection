@@ -3,3 +3,5 @@ output_video.mp4
 *.csv
 *.avi
 output_video.avi
+*jpg
+frame_10.jpg
