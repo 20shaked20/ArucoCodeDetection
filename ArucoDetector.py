@@ -124,7 +124,7 @@ class ArucoDetector:
         self.logger.info(f"CSV file saved to {self.output_csv_path}")
 
 if __name__ == "__main__":
-    video_path = 'Home_testing.mp4'
+    video_path = 'TestHome1.mov'
     output_csv_path = 'output.csv'
     output_video_path = 'output_video.avi'
 
